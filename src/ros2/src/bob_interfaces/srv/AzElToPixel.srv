@@ -1,0 +1,11 @@
+# Convert true-north azimuth / apparent elevation to fisheye image pixels.
+float64[] azimuth_deg
+float64[] elevation_deg
+int32 image_width      # resolution wanted; 0 = calibration resolution
+int32 image_height
+---
+bool success
+string message
+float64[] x
+float64[] y
+bool[] in_image

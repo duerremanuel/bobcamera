@@ -47,6 +47,8 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/TrackDetection.msg"
   "msg/Tracking.msg"
   "msg/LogMessage.msg"
+  "msg/TrackAzEl.msg"
+  "msg/TrackAzElArray.msg"
   # "srv/BGSResetRequest.srv"
   "srv/ConfigEntryUpdate.srv"
   "srv/ApplicationInfo.srv"
@@ -58,6 +60,10 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/CameraSettings.srv"
   "srv/SensitivityChangeRequest.srv"
   "srv/RecordingRequest.srv"
+  "srv/StarTrackerCapture.srv"
+  "srv/StarTrackerCalibrate.srv"
+  "srv/PixelToAzEl.srv"
+  "srv/AzElToPixel.srv"
   DEPENDENCIES std_msgs sensor_msgs vision_msgs geometry_msgs
 )
 

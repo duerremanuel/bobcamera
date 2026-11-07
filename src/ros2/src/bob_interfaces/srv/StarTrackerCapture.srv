@@ -1,0 +1,11 @@
+# Grab and mean-stack a few frames from the all-sky camera, detect the stars
+# and store them as a star-tracker capture (image + star pixel positions).
+string utc_time      # ISO-8601 UTC capture time; empty = time of the frames
+bool calibrate       # re-fit the fisheye -> az/el model over all captures afterwards
+---
+bool success
+string message
+string capture_id
+int32 num_detections
+int32 num_matched    # stars identified in this capture (only if calibrate)
+float64 rms_deg      # calibration residual (only if calibrate)

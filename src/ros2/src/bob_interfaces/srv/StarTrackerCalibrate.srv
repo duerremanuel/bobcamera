@@ -1,0 +1,12 @@
+# Fit the fisheye pixel -> true-north azimuth / elevation model from the
+# stored star-tracker captures and save it as calibration.json.
+string[] capture_ids   # empty = all stored captures
+bool force             # save even if the solution is rated 'poor'
+---
+bool success
+string message
+int32 num_stars
+float64 rms_px
+float64 rms_deg
+string quality         # good | marginal | poor
+string calibration_json

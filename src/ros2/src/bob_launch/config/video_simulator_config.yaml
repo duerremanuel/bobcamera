@@ -25,6 +25,17 @@ basic_config:
     seconds_save: 2
     #pipeline: 'appsrc ! videoconvert ! openh264enc bitrate=10240000 qp-min=10 qp-max=51 ! h264parse ! mp4mux ! filesink location='
     
+  startracker_node:
+    # Camera site - REQUIRED for star identification (WGS84, longitude east positive)
+    latitude: 0.0
+    longitude: 0.0
+    elevation_m: 0.0
+    # Recorded videos carry no real capture time: set the UTC time the video
+    # was recorded (ISO 8601, e.g. '2026-01-15T21:00:00Z'). Leave empty for live cameras.
+    time_override: ''
+    # Take a capture every N seconds while the sun is below -12 deg (0 = only on request)
+    auto_capture_interval_s: 0.0
+
   multi_frame_viewer_node:
     topics: 
       - '/bob/frames/annotated/resized/compressed'
@@ -209,6 +220,27 @@ advanced_config:
     width: 1920
     height: 1080
 
+  startracker_node:
+    image_topic: 'bob/frames/allsky/original'
+    tracking_topic: 'bob/tracker/tracking'
+    storage_folder: 'assets/startracker'
+    mask_file: 'assets/masks/detection-mask.jpg'
+    pressure_hpa: 1010.0         # for refraction near the horizon, 0 disables
+    temperature_c: 10.0
+    stack_frames: 15             # frames mean-stacked per capture (noise reduction)
+    detection_snr: 5.0
+    fov_deg: 180.0               # nominal lens FOV across image_circle_radius
+    image_circle_radius: 0.0     # px, 0 = half the short image side
+    max_mag: 4.5
+    min_elevation_deg: 5.0
+    fit_tangential: False
+    catalog_csv: ''              # optional extra stars: name,ra_deg,dec_deg,mag
+    time_offset_s: 0.0
+    auto_capture_max_sun_elevation_deg: -12.0
+    auto_calibrate: True
+    tracking_image_width: 0      # resolution of tracker bboxes if not the original frame
+    tracking_image_height: 0
+
 #########################################################################
 # Launch nodes configuration
 #   Here is what containers and nodes will be launched by this
@@ -356,5 +388,10 @@ launch:
     - package: bob_webapi
       executable: mask_webapi
       name: mask_webapi_node
+      remappings: []
+      output: screen
+    - package: bob_startracker
+      executable: startracker
+      name: startracker_node
       remappings: []
       output: screen

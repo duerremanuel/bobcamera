@@ -1,0 +1,11 @@
+# Convert fisheye image pixels to true-north azimuth / apparent elevation.
+float64[] x
+float64[] y
+int32 image_width      # resolution the pixels refer to; 0 = calibration resolution
+int32 image_height
+---
+bool success
+string message
+float64[] azimuth_deg  # 0 = true north, 90 = east
+float64[] elevation_deg
+bool[] extrapolated     # pixel lies outside the sky region covered by calibration stars

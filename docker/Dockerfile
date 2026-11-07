@@ -62,10 +62,10 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
         #libgstreamer-plugins-base1.0-0 libgstreamer-plugins-good1.0-0 libgstreamer-plugins-bad1.0-0 \
         libboost-python-dev libboost-system-dev locales \
         ros-${ROS_DISTRO}-vision-msgs ros-${ROS_DISTRO}-image-transport \
-        python3-pillow python3-pymongo python3-tornado python3-cairosvg \
+        python3-pillow python3-pymongo python3-tornado python3-cairosvg python3-scipy \
     # Install ONVIF library so we can get camera details using the ONVIF protocol
     && mv /usr/lib/python3.12/EXTERNALLY-MANAGED /usr/lib/python3.12/EXTERNALLY-MANAGED.old \
-    && pip install --upgrade onvif2_zeep \
+    && pip install --upgrade onvif2_zeep ephem \
     # Install QHY SDK
     && cd /opt/sdk_qhy && bash install.sh \
     # cleaning
@@ -179,10 +179,10 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
     libhdf5-dev libatlas-base-dev \
     libboost-python-dev libboost-system-dev libtbb-dev \        
     ros-${ROS_DISTRO}-vision-msgs ros-${ROS_DISTRO}-image-transport \
-    python3-pillow python3-pymongo python3-tornado python3-cairosvg \
+    python3-pillow python3-pymongo python3-tornado python3-cairosvg python3-scipy \
     # Install ONVIF library so we can get camera details using the ONVIF protocol
     && mv /usr/lib/python3.12/EXTERNALLY-MANAGED /usr/lib/python3.12/EXTERNALLY-MANAGED.old \
-    && pip install --upgrade onvif2_zeep \
+    && pip install --upgrade onvif2_zeep ephem \
     # Install QHY SDK
     && cd /opt/sdk_qhy && bash install.sh \
     # Install the libs locally
@@ -294,10 +294,10 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
     libhdf5-dev libatlas-base-dev \
     libboost-python-dev libboost-system-dev libtbb-dev \        
     ros-${ROS_DISTRO}-vision-msgs ros-${ROS_DISTRO}-image-transport \
-    python3-pillow python3-pymongo python3-tornado python3-cairosvg \
+    python3-pillow python3-pymongo python3-tornado python3-cairosvg python3-scipy \
     # Install ONVIF library so we can get camera details using the ONVIF protocol
     && mv /usr/lib/python3.12/EXTERNALLY-MANAGED /usr/lib/python3.12/EXTERNALLY-MANAGED.old \
-    && pip install --upgrade onvif2_zeep \
+    && pip install --upgrade onvif2_zeep ephem \
     # Install QHY SDK
     && cd /opt/sdk_qhy && bash install.sh \
     # Install the libs locally
