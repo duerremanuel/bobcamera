@@ -6,6 +6,11 @@ basic_variables:
   use_recording: true         # true to enable recording, false otherwise
   camera1_enabled: true       # true to enable camera1, false otherwise
   camera2_enabled: false      # true to enable camera2, false otherwise
+  # Camera site for the star tracker (WGS84, longitude east positive) - REQUIRED.
+  # Keep the decimal point (51.0, not 51): ROS rejects an integer for these.
+  site_latitude: 0.0
+  site_longitude: 0.0
+  site_elevation_m: 0.0
 
 ###################################################################################
 ## Basic configuration for nodes
@@ -41,6 +46,14 @@ basic_config:
     recording_prefix: 'allsky'        # Prefix name for the recording files
     source_type: 'RTSP_STREAM'        # USB_CAMERA | VIDEO_FILE | RTSP_STREAM
     rtsp_uri: 'rtsp://bob:Bobuser$01@192.168.50.11:554/Streaming/Channels/101' # RTSP URI for the camera
+
+  # Star tracker: fisheye pixels -> true-north azimuth/elevation (see bob_startracker README)
+  camera1_startracker_node:
+    auto_capture_interval_s: 0.0      # e.g. 3600 = capture hourly on clear dark nights, 0 = on request only
+    time_override: ''                 # VIDEO_FILE sources: UTC time the video was recorded
+  camera2_startracker_node:
+    auto_capture_interval_s: 0.0
+    time_override: ''
     
 
 ###################################################################################
@@ -180,6 +193,34 @@ advanced_config:
   camera2_foreground_mask_compressor_node:
     compressed_frame_subscriber_topic: 'bob/camera2/foreground_mask/resized'
     compression_quality: $image_compression_quality
+
+  base_startracker_node:
+    latitude: $site_latitude
+    longitude: $site_longitude
+    elevation_m: $site_elevation_m
+    stack_frames: 15
+    detection_snr: 5.0
+    weather_enabled: true
+    weather_max_cloud_cover_pct: 20.0
+    camera_max_cloud_fraction: 0.2
+
+  camera1_startracker_node:
+    copy: base_startracker_node
+    topic_prefix: 'bob/camera1/startracker'
+    image_topic: 'bob/camera1/original'
+    tracking_topic: 'bob/camera1/tracker/tracking'
+    cloud_estimation_topic: 'bob/camera1/observer/cloud_estimation'
+    mask_file: 'assets/masks/camera1-detection-mask.jpg'
+    storage_folder: 'assets/startracker/camera1'
+
+  camera2_startracker_node:
+    copy: base_startracker_node
+    topic_prefix: 'bob/camera2/startracker'
+    image_topic: 'bob/camera2/original'
+    tracking_topic: 'bob/camera2/tracker/tracking'
+    cloud_estimation_topic: 'bob/camera2/observer/cloud_estimation'
+    mask_file: 'assets/masks/camera2-detection-mask.jpg'
+    storage_folder: 'assets/startracker/camera2'
 
   camera1_image_estimator_node:
     camera_subscription_topic: 'bob/camera1/original/sample'
@@ -423,5 +464,17 @@ launch:
       executable: mask_webapi
       name: mask_webapi_node
       enabled: true
+      remappings: []
+      output: $logging_type
+    - package: bob_startracker
+      executable: startracker
+      name: camera1_startracker_node
+      enabled: $camera1_enabled
+      remappings: []
+      output: $logging_type
+    - package: bob_startracker
+      executable: startracker
+      name: camera2_startracker_node
+      enabled: $camera2_enabled
       remappings: []
       output: $logging_type

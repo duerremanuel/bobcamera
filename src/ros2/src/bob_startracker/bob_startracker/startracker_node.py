@@ -56,6 +56,7 @@ class StarTrackerNode(Node):
     def __init__(self):
         super().__init__('bob_startracker')
         self.declare_parameters(namespace='', parameters=[
+            ('topic_prefix', 'bob/startracker'),   # per-camera instances: bob/camera1/startracker
             ('image_topic', 'bob/frames/allsky/original'),
             ('tracking_topic', 'bob/tracker/tracking'),
             ('storage_folder', 'assets/startracker'),
@@ -130,19 +131,19 @@ class StarTrackerNode(Node):
         self.create_subscription(ObserverCloudEstimation, P('cloud_estimation_topic'),
                                  lambda m: self.sky.update_local_cloud(m.percentage_cloud_cover),
                                  tracking_qos, callback_group=self.cb_frames)
-        self.pub_outlook = self.create_publisher(String, 'bob/startracker/sky_outlook', latched)
+        self.pub_outlook = self.create_publisher(String, f"{P('topic_prefix')}/sky_outlook", latched)
         self.create_subscription(Tracking, P('tracking_topic'), self.tracking_callback,
                                  tracking_qos, callback_group=self.cb_frames)
-        self.pub_calibration = self.create_publisher(String, 'bob/startracker/calibration', latched)
-        self.pub_tracks = self.create_publisher(TrackAzElArray, 'bob/startracker/tracks_azel', 10)
+        self.pub_calibration = self.create_publisher(String, f"{P('topic_prefix')}/calibration", latched)
+        self.pub_tracks = self.create_publisher(TrackAzElArray, f"{P('topic_prefix')}/tracks_azel", 10)
 
-        self.create_service(StarTrackerCapture, 'bob/startracker/capture', self.capture_callback,
+        self.create_service(StarTrackerCapture, f"{P('topic_prefix')}/capture", self.capture_callback,
                             callback_group=self.cb_services)
-        self.create_service(StarTrackerCalibrate, 'bob/startracker/calibrate', self.calibrate_callback,
+        self.create_service(StarTrackerCalibrate, f"{P('topic_prefix')}/calibrate", self.calibrate_callback,
                             callback_group=self.cb_services)
-        self.create_service(PixelToAzEl, 'bob/startracker/pixel_to_azel', self.pixel_to_azel_callback,
+        self.create_service(PixelToAzEl, f"{P('topic_prefix')}/pixel_to_azel", self.pixel_to_azel_callback,
                             callback_group=self.cb_services)
-        self.create_service(AzElToPixel, 'bob/startracker/azel_to_pixel', self.azel_to_pixel_callback,
+        self.create_service(AzElToPixel, f"{P('topic_prefix')}/azel_to_pixel", self.azel_to_pixel_callback,
                             callback_group=self.cb_services)
 
         self.create_timer(5.0, self.reload_model, callback_group=self.cb_services)
