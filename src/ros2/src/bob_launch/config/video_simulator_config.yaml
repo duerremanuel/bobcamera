@@ -33,8 +33,10 @@ basic_config:
     # Recorded videos carry no real capture time: set the UTC time the video
     # was recorded (ISO 8601, e.g. '2026-01-15T21:00:00Z'). Leave empty for live cameras.
     time_override: ''
-    # Take a capture every N seconds while the sun is below -12 deg (0 = only on request)
+    # Take a capture every N seconds while it is dark (sun below -12 deg) and the
+    # sky is probably clear (Open-Meteo forecast + Bob's cloud estimator). 0 = only on request
     auto_capture_interval_s: 0.0
+    weather_max_cloud_cover_pct: 20.0   # forecast total cloud cover limit for auto captures
 
   multi_frame_viewer_node:
     topics: 
@@ -238,6 +240,12 @@ advanced_config:
     time_offset_s: 0.0
     auto_capture_max_sun_elevation_deg: -12.0
     auto_calibrate: True
+    weather_enabled: True        # Open-Meteo cloud forecast (free, no API key, non-commercial use)
+    weather_api_url: 'https://api.open-meteo.com/v1/forecast'
+    weather_refresh_s: 1800.0
+    weather_offline_policy: 'allow'   # 'allow' = capture without forecast, 'skip' = wait for one
+    cloud_estimation_topic: 'bob/observer/cloud_estimation'   # Bob's camera-based estimate
+    camera_max_cloud_fraction: 0.2
     tracking_image_width: 0      # resolution of tracker bboxes if not the original frame
     tracking_image_height: 0
 

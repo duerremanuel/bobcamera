@@ -65,6 +65,8 @@ covered by stars.
    stars on different pixels and tightens the distortion fit. You can also set
    `auto_capture_interval_s` (for example 3600) to collect captures unattended
    through the night.
+   Auto-captures only run when the sky is **probably clear**. Two signals are
+   used (see below).
 3. Use the calibration:
 
    ```bash
@@ -80,6 +82,32 @@ covered by stars.
 **Recorded videos** contain no real capture time. Set `time_override` to the UTC
 time the video was recorded. If the camera clock is off, correct it with
 `time_offset_s`: a 1-minute error moves the stars by about 0.25°.
+
+## When is the sky clear? (weather)
+
+Two independent signals decide whether an automatic capture runs:
+
+| signal | source | answers | setting |
+|---|---|---|---|
+| cloud forecast | [Open-Meteo](https://open-meteo.com) hourly `cloud_cover` (free for non-commercial use, no API key) | *when* tonight is likely clear | `weather_max_cloud_cover_pct` (20) |
+| camera cloud estimate | Bob's `cloud_estimator` (`bob/observer/cloud_estimation`) | is it clear *right now* above this camera | `camera_max_cloud_fraction` (0.2) |
+
+Both must pass, and the sun must be below `auto_capture_max_sun_elevation_deg`
+(−12°). The forecast is refreshed every 30 min. Each capture stores the
+conditions at capture time in `capture.json`.
+
+If the internet is unreachable, `weather_offline_policy` decides what happens.
+`allow` captures on darkness and the camera estimate alone; `skip` waits until a
+forecast is available. Manual captures always run, and they warn if the
+forecast says it is cloudy.
+
+The node publishes `bob/startracker/sky_outlook` (latched JSON). It contains
+the current forecast and camera estimate, plus the **clear dark windows** for
+the next 36 hours. Offline, you can check the same thing with:
+
+```bash
+bob_startracker outlook --lat 51.2 --lon 7.1
+```
 
 ## Workflow (offline CLI, no ROS)
 

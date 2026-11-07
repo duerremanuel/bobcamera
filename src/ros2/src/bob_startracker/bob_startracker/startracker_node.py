@@ -11,7 +11,13 @@ Topics (published)
   bob/startracker/tracks_azel  bob_interfaces/msg/TrackAzElArray
 
 Optionally takes a capture automatically every ``auto_capture_interval_s``
-seconds while the sun is below ``auto_capture_max_sun_elevation_deg``.
+seconds while it is dark (sun below ``auto_capture_max_sun_elevation_deg``)
+AND the sky is probably clear: Open-Meteo cloud forecast below
+``weather_max_cloud_cover_pct`` and, if Bob's cloud estimator is running, the
+camera's own cloud estimate below ``camera_max_cloud_fraction``.
+
+  bob/startracker/sky_outlook  std_msgs/String (JSON: current conditions and
+                               the clear dark windows of the next 36 h)
 """
 
 from __future__ import annotations
@@ -33,7 +39,7 @@ from cv_bridge import CvBridge
 from sensor_msgs.msg import Image
 from std_msgs.msg import String
 
-from bob_interfaces.msg import Tracking, TrackAzEl, TrackAzElArray
+from bob_interfaces.msg import Tracking, TrackAzEl, TrackAzElArray, ObserverCloudEstimation
 from bob_interfaces.srv import (StarTrackerCapture, StarTrackerCalibrate,
                                 PixelToAzEl, AzElToPixel)
 
@@ -42,6 +48,7 @@ from .fisheye_model import FisheyeModel, angular_separation_deg
 from .star_catalog import Site, StarCatalog
 from .star_detector import DetectorParams, stack_frames
 from .star_matcher import SolverParams
+from .sky_conditions import SkyMonitor
 
 
 class StarTrackerNode(Node):
@@ -71,6 +78,13 @@ class StarTrackerNode(Node):
             ('time_offset_s', 0.0),      # added to frame time (camera clock error)
             ('auto_capture_interval_s', 0.0),
             ('auto_capture_max_sun_elevation_deg', -12.0),
+            ('weather_enabled', True),                 # Open-Meteo cloud forecast
+            ('weather_api_url', 'https://api.open-meteo.com/v1/forecast'),
+            ('weather_max_cloud_cover_pct', 20.0),
+            ('weather_refresh_s', 1800.0),
+            ('weather_offline_policy', 'allow'),       # allow | skip when no forecast
+            ('cloud_estimation_topic', 'bob/observer/cloud_estimation'),
+            ('camera_max_cloud_fraction', 0.2),
             ('auto_calibrate', True),
             ('tracking_image_width', 0),  # resolution of tracker bboxes; 0 = calibration res.
             ('tracking_image_height', 0),
@@ -83,6 +97,12 @@ class StarTrackerNode(Node):
 
         catalog = StarCatalog(P('catalog_csv') or None)
         self.store = CalibrationStore(P('storage_folder'), catalog)
+        self.sky = SkyMonitor(self.site(), enabled=P('weather_enabled'), url=P('weather_api_url'),
+                              refresh_s=P('weather_refresh_s'),
+                              max_cloud_cover=P('weather_max_cloud_cover_pct'),
+                              max_sun_elevation_deg=P('auto_capture_max_sun_elevation_deg'),
+                              local_max_cloud_fraction=P('camera_max_cloud_fraction'),
+                              offline_policy=P('weather_offline_policy'))
         self.br = CvBridge()
         self.lock = threading.Lock()
         self.model: FisheyeModel | None = None
@@ -107,6 +127,10 @@ class StarTrackerNode(Node):
 
         self.create_subscription(Image, P('image_topic'), self.image_callback, sensor_qos,
                                  callback_group=self.cb_frames)
+        self.create_subscription(ObserverCloudEstimation, P('cloud_estimation_topic'),
+                                 lambda m: self.sky.update_local_cloud(m.percentage_cloud_cover),
+                                 tracking_qos, callback_group=self.cb_frames)
+        self.pub_outlook = self.create_publisher(String, 'bob/startracker/sky_outlook', latched)
         self.create_subscription(Tracking, P('tracking_topic'), self.tracking_callback,
                                  tracking_qos, callback_group=self.cb_frames)
         self.pub_calibration = self.create_publisher(String, 'bob/startracker/calibration', latched)
@@ -122,10 +146,14 @@ class StarTrackerNode(Node):
                             callback_group=self.cb_services)
 
         self.create_timer(5.0, self.reload_model, callback_group=self.cb_services)
+        if P('weather_enabled'):
+            self.create_timer(float(P('weather_refresh_s')), self.publish_outlook,
+                              callback_group=self.cb_services)
         if P('auto_capture_interval_s') > 0:
             self.create_timer(float(P('auto_capture_interval_s')), self.auto_capture,
                               callback_group=self.cb_services)
         self.reload_model()
+        self.publish_outlook()
         self.get_logger().info(f'{self.get_name()} up; storage {self.store.root}, '
                                f'calibrated={self.model is not None}')
 
@@ -245,8 +273,11 @@ class StarTrackerNode(Node):
             t = t + timedelta(seconds=float(self.p('time_offset_s')))
             img = np.clip(stacked, 0, 255).astype(np.uint8) if stacked.max() <= 255 \
                 else np.clip(stacked, 0, 65535).astype(np.uint16)
+            conditions = self.sky.conditions(t)
+            conditions.pop('clear_dark_windows', None)
             cap = self.store.new_capture(img, t, self.site(), self.load_mask(),
-                                         DetectorParams(snr=self.p('detection_snr')), frames_stacked=n)
+                                         DetectorParams(snr=self.p('detection_snr')), frames_stacked=n,
+                                         conditions=conditions)
             self.store.write_overlay(cap, self.model_for(0, 0))
             self.get_logger().info(f'capture {cap.capture_id}: {len(cap.detections)} stars detected '
                                    f'({n} frames stacked, sun {cap.sun_elevation_deg:.1f} deg)')
@@ -267,8 +298,12 @@ class StarTrackerNode(Node):
             response.num_detections = len(cap.detections)
             response.num_matched = len(cap.matches) + len(cap.manual)
             response.rms_deg = float(res.rms_deg) if res else float('nan')
-            response.message = 'ok' if res is None else \
-                f'calibrated: {res.n_matches} stars, rms {res.rms_deg:.3f} deg ({res.quality})'
+            cond = cap.conditions or {}
+            fc = (cond.get('forecast') or {}).get('cloud_cover')
+            warn = f' (warning: forecast {fc:.0f}% cloud)' if fc is not None and \
+                fc > self.p('weather_max_cloud_cover_pct') else ''
+            response.message = ('ok' + warn) if res is None else \
+                f'calibrated: {res.n_matches} stars, rms {res.rms_deg:.3f} deg ({res.quality})' + warn
         except Exception as e:
             self.get_logger().error(f'capture failed: {e}\n{tb.format_exc()}')
             response.success = False
@@ -276,16 +311,37 @@ class StarTrackerNode(Node):
         return response
 
     def auto_capture(self):
-        site = self.site()
-        sun = StarCatalog.sun_elevation(site, datetime.now(timezone.utc))
-        if sun > self.p('auto_capture_max_sun_elevation_deg') or self.busy.locked():
+        if self.busy.locked():
+            return
+        ok, reason = self.sky.should_capture()
+        if not ok:
+            self.get_logger().debug(f'auto capture skipped: {reason}')
             return
         try:
+            self.get_logger().info(f'auto capture: {reason}')
             cap, res = self.do_capture('', bool(self.p('auto_calibrate')))
             if res:
                 self.get_logger().info(f'auto calibration: {res.n_matches} stars, rms {res.rms_deg:.3f} deg')
         except Exception as e:
             self.get_logger().warning(f'auto capture failed: {e}')
+
+    def publish_outlook(self):
+        if not self.p('weather_enabled'):
+            return
+        if not self.sky.refresh():
+            self.get_logger().warning(f'weather forecast unavailable: {self.sky.last_error}')
+        try:
+            out = self.sky.conditions()
+            self.pub_outlook.publish(String(data=json.dumps(out)))
+            wins = out.get('clear_dark_windows') or []
+            if wins:
+                w = wins[0]
+                self.get_logger().info(f"next clear dark window: {w['start_utc']} -> {w['end_utc']} "
+                                       f"({w['mean_cloud_cover']}% cloud)")
+            elif self.sky.forecast is not None:
+                self.get_logger().info('no clear dark window forecast in the next 36 h')
+        except Exception as e:
+            self.get_logger().error(f'outlook failed: {e}')
 
     # ------------------------------------------------------------------ calibrate
     def calibrate_callback(self, request, response):

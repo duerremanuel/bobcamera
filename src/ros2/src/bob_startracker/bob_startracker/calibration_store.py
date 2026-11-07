@@ -55,6 +55,7 @@ class Capture:
     frames_stacked: int = 1
     sun_elevation_deg: float = float("nan")
     notes: str = ""
+    conditions: Optional[dict] = None     # weather / camera cloud estimate at capture time
 
     def to_dict(self):
         return {
@@ -66,6 +67,7 @@ class Capture:
             "frames_stacked": self.frames_stacked,
             "sun_elevation_deg": self.sun_elevation_deg,
             "notes": self.notes,
+            "conditions": self.conditions,
             "detections": [d.to_dict() for d in self.detections],
             "matches": [m.to_dict() for m in self.matches],
             "manual": [m.to_dict() for m in self.manual],
@@ -85,6 +87,7 @@ class Capture:
             frames_stacked=int(d.get("frames_stacked", 1)),
             sun_elevation_deg=float(d.get("sun_elevation_deg", float("nan"))),
             notes=d.get("notes", ""),
+            conditions=d.get("conditions"),
         )
 
 
@@ -137,7 +140,8 @@ class CalibrationStore:
     def new_capture(self, image: np.ndarray, utc_time: datetime, site: Site,
                     mask: Optional[np.ndarray] = None,
                     detector: Optional[DetectorParams] = None,
-                    frames_stacked: int = 1, notes: str = "") -> Capture:
+                    frames_stacked: int = 1, notes: str = "",
+                    conditions: Optional[dict] = None) -> Capture:
         """Detect stars in ``image`` and store it as a new capture."""
         h, w = image.shape[:2]
         cid = utc_time.strftime("%Y%m%dT%H%M%SZ")
@@ -147,7 +151,8 @@ class CalibrationStore:
             n += 1
         dets = detect_stars(image, mask, detector)
         cap = Capture(cid, utc_time, site, w, h, dets, frames_stacked=frames_stacked,
-                      sun_elevation_deg=StarCatalog.sun_elevation(site, utc_time), notes=notes)
+                      sun_elevation_deg=StarCatalog.sun_elevation(site, utc_time), notes=notes,
+                      conditions=conditions)
         self.save_capture(cap, image)
         return cap
 

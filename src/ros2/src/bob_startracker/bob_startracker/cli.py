@@ -9,6 +9,9 @@ Examples::
     # optional: pin a star by hand if the automatic match struggles
     bob_startracker add-star 20260115T210000Z Vega 812.4 233.9
 
+    # when is it probably clear and dark tonight? (Open-Meteo forecast)
+    bob_startracker outlook --lat 51.2 --lon 7.1
+
     # fit the fisheye -> az/el model from every stored capture
     bob_startracker calibrate
 
@@ -74,6 +77,18 @@ def cmd_detect(a):
 def cmd_add_star(a):
     m = _store(a).add_manual_star(a.capture_id, a.name, a.x, a.y)
     print(json.dumps(m.to_dict(), indent=2))
+
+
+def cmd_outlook(a):
+    from .sky_conditions import SkyMonitor
+    sky = SkyMonitor(Site(a.lat, a.lon), max_cloud_cover=a.max_cloud,
+                     max_sun_elevation_deg=a.max_sun)
+    if not sky.refresh(force=True):
+        sys.exit(f"error: weather forecast unavailable: {sky.last_error}")
+    out = sky.conditions()
+    ok, reason = sky.should_capture()
+    out["capture_now"] = {"ok": ok, "reason": reason}
+    print(json.dumps(out, indent=2))
 
 
 def cmd_list(a):
@@ -154,6 +169,13 @@ def main(argv=None):
     m.set_defaults(fn=cmd_add_star)
 
     sub.add_parser("list", help="list captures").set_defaults(fn=cmd_list)
+
+    o = sub.add_parser("outlook", help="clear dark windows in the next 36 h (Open-Meteo forecast)")
+    o.add_argument("--lat", type=float, required=True)
+    o.add_argument("--lon", type=float, required=True)
+    o.add_argument("--max-cloud", type=float, default=20.0, help="max forecast cloud cover %%")
+    o.add_argument("--max-sun", type=float, default=-12.0, help="max sun elevation deg")
+    o.set_defaults(fn=cmd_outlook)
 
     k = sub.add_parser("calibrate", help="fit the model from stored captures")
     k.add_argument("captures", nargs="*")
